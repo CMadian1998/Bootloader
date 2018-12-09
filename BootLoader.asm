@@ -1,6 +1,6 @@
 ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-	;1)
 ;Teremity System One Bootloader			;2)
-;(c) Charlie Madigan 2018			;3)
+;			;)
 ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-	;4)
 org 0x7C00					;5) Memory Address where the boot loader will be loaded too
 jmp short Boot					;6)
