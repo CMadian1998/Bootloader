@@ -1,12 +1,12 @@
-;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-	;1)
+;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=	;1)
 ;Teremity System One Bootloader			;2)
-;			;)
-;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-	;4)
+;						;3)
+;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=	;4)
 org 0x7C00					;5) Memory Address where the boot loader will be loaded too
 jmp short Boot					;6)
 nop						;7)
-;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=			;8)
-bpbOEM			db "Teremity"		;9) OEM label for the disk (8 bytes)		
+;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=	;8)
+bpbOEM			db "AAAAAAAA"		;9) OEM label for the disk (8 bytes)		
 bpbBytesPerSector:  	DW 0x0200		;10) The size of the sectors in bytes
 bpbSectorsPerCluster: 	DB 0x01			;11) How many sectors make up a cluster
 bpbReservedSectors: 	DW 0x0001		;12) How many sectors exist before the first FAT. 1 for the boot loader.
@@ -23,7 +23,7 @@ bsDriveNumber: 		DB 0x00			;22)
 bsUnused: 		DB 0x00			;23)
 bsExtBootSignature: 	DB 0x29			;24)
 bsSerialNumber:		DD 0xa0a1a2a3		;25)
-bsVolumeLabel: 		DB "TERSYSBOOT1"	;26)
+bsVolumeLabel: 		DB "AAAAAAAASYS"	;26)
 bsFileSystem: 		DB "FAT12   "		;27)
 ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=			;28)
 Boot:						;29)
@@ -34,59 +34,55 @@ Boot:						;29)
 	mov ss, ax				;34)
 	mov sp, 0x7C00				;35)
 	sti					;36) Starts Interrupts
-	call ResetDisk				;37) jumps to another part of the code which returns to this point after it has been executed
 LoadFAT:					;38)
 	pusha					;39)
 	mov si, READING				;40)
 	call BPrint				;41)
 	popa					;42)
-	mov al, 0x09				;43) Put the values 0x09 into the AL register
-	mov ch, [bsDriveNumber]			;44)
-	mov cl, 0x01				;45)
-	xor dx, dx				;46)
+	mov ax, 0x0001
+	call LBAToCHS
+	mov al, 0x09				;46)
 	mov bx, 0x7E00				;47)
 	call ReadDisk				;48)
 FindRootDir:					;49)
-	mov ax, word [bpbSectorsPerFAT]		;50)
-	mov bx, 0x0002				;51)
-	mul bx					;52)
-	inc ax					;53) AX now equals the LBA of the Root Directory
+	mov ax, 0x0013				;53) AX now equals the LBA of the Root Directory
 	call LBAToCHS				;54) 
 	mov al, 14				;55) The number of sectors loaded into memory
-	mov bx, 0x9040				;56) The memory address where the sectors are loaded into
+	mov bx, 0x9000				;56) The memory address where the sectors are loaded into
 	call ReadDisk				;57) 
-	xor ch, ch				;58) Acts as a counter for the current character in 
-	mov cl, 0x01				;59) Acts as a counter for the current Entry in the root dir
-	mov bx, 0x90C0				;60) This will be used to keep track of the current address
+	xor cx, cx				;59) Acts as a counter for the current Entry in the root dir
+	mov bx, 0x90C0
 FindKernel:					;61)
+	inc cl
 	mov si, bx				;62)
 	mov di, TMP				;63)
 .SaveName:					;64)
-	lodsb					;65)
+	lodsb
 	stosb					;66)
-	cmp ch, 0x07				;67)
+	cmp ch, 0x0A				;67)
 	je .Stored				;68)
 	inc ch					;69)
 	jmp .SaveName				;70)
-.Stored:					;)
-	mov si, KER				;)					
-	xor ch, ch				;)
+.Stored:					;71)
+	mov si, TMP				;71)
+	call BPrint
+	mov di, KER					
+	xor ch, ch				;73)
+	cld					;)
 .CMPLoop:					;)
-	mov al, [si]				;)
-	mov ah, [di]				;)
-	inc si					;)
-	inc di					;)
-	cmp al, 0xE5				;)
-	je .KerNF				;)
-	cmp al, ah				;)
-	jne .KerNF				;)
-	cmp ch, 0x08				;)
-	je .KerF				;)
-	inc ch					;)
-	jmp .CMPLoop				;)
+	mov ah, [si]
+	mov dh, [di]
+	cmp ah, dh
+	jne .KerNF
+	inc si
+	inc di					;) compare this byte to the same byte from SI and then increment both. Set Zero flag if they are equal
+	cmp ch, 0x0A				;) Check for the end of the kernel
+	je .KerF				;) If we are at the end, jump to the kernel found label
+	inc ch					;) if not increment CH
+	jmp .CMPLoop 				;) And Repeat
 .KerNF:						;)
-	add bx, 0x1F				;)
-	cmp cl, 0xE0				;)
+	add bx, 0x20				;)
+	cmp cl, 0xE1				;)
 	jne FindKernel				;)
 	pusha					;)
 	mov si, KERNF				;)
@@ -157,7 +153,7 @@ FindKernel:					;61)
 	mov ax, cx				;)AX now equals the next FAT index
 	jmp .CheckIfEven			;)Repeat Process				
 .StartExecuting:				;)
-	jmp bx					;)
+	jmp 0xAD00:0x0000			;)
 ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=			;)
 BPrint:						;)
 	mov ah, 0x0E				;)
@@ -185,14 +181,6 @@ WriteHex:					;)
 	int 0x10				;)
 	ret					;)
 ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=			;)
-ResetDisk:					;)
-	pusha					;)
-	xor ah, ah				;)
-	xor dl, dl				;)
-	int 0x13				;)
-	jc DiskError				;)
-	popa					;)
-	ret					;)
 ReadDisk:					;)
 	mov ah, 0x02				;)
 	int 0x13				;)
@@ -222,12 +210,12 @@ LBAToCHS:					;)
     	or cl, ah				;) upper 2 bits of Sector (CL):: DH = H, CX = C/S
 	ret					;)
 ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=			;)
-READING db 'Reading',0x0A,0x0D,0
-TMP times 8 db 0 
-KER db 'Kernel  SYS'
-KERF db 'Loading', 0x0A, 0x0D,0
+READING db 'Read',0x0A,0
+TMP times 11 db 0, 
+KER db 'KERNEL  SYS'
+KERF db 'Loading', 0x0A,0
 KERNF db 'No Kernel',0
-DISKERR db 'ERR INT:0x13|AH:0x',0
+DISKERR db 'ERR AH:0x',0
 HEX db '0123456789ABCDEF'
 times 510 - ($-$$) db 0
 dw 0xAA55
